@@ -50,6 +50,16 @@ CREATE TABLE IF NOT EXISTS "SyncRun" (
     "message" TEXT
 );
 
+-- CreateTable
+CREATE TABLE IF NOT EXISTS "Visitor" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "browserId" TEXT NOT NULL,
+    "userAgent" TEXT,
+    "viewCount" INTEGER NOT NULL DEFAULT 1,
+    "firstSeenAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastSeenAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX IF NOT EXISTS "Category_sourceId_key" ON "Category"("sourceId");
 
@@ -61,3 +71,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS "Site_sourceId_key" ON "Site"("sourceId");
 
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "SiteCategory_categoryId_sortOrder_idx" ON "SiteCategory"("categoryId", "sortOrder");
+
+-- CreateIndex
+CREATE UNIQUE INDEX IF NOT EXISTS "Visitor_browserId_key" ON "Visitor"("browserId");

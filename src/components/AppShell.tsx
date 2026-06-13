@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CatalogCategory } from "@/lib/types";
 import { CategorySection } from "./CategorySection";
 import { SearchBar } from "./SearchBar";
@@ -12,13 +12,25 @@ interface AppShellProps {
   stats: {
     categoryCount: number;
     siteCount: number;
+    viewerCount: number;
     lastSyncLabel: string | null;
   };
+}
+
+const BROWSER_ID_STORAGE_KEY = "pmbaobao_browser_id";
+
+function createBrowserId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID().replaceAll("-", "");
+  }
+
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
 }
 
 export function AppShell({ categories, stats }: AppShellProps) {
   const [query, setQuery] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [viewerCount, setViewerCount] = useState(stats.viewerCount);
   const allSites = useMemo(
     () =>
       categories.flatMap((category) => [
@@ -28,6 +40,32 @@ export function AppShell({ categories, stats }: AppShellProps) {
     [categories]
   );
   const uniqueSiteCount = new Set(allSites.map((site) => site.sourceId)).size;
+
+  useEffect(() => {
+    const storedBrowserId = window.localStorage.getItem(BROWSER_ID_STORAGE_KEY);
+    const browserId = storedBrowserId || createBrowserId();
+
+    if (!storedBrowserId) {
+      window.localStorage.setItem(BROWSER_ID_STORAGE_KEY, browserId);
+    }
+
+    void fetch("/api/visitors", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ browserId })
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: { viewerCount?: number } | null) => {
+        if (typeof payload?.viewerCount === "number") {
+          setViewerCount(payload.viewerCount);
+        }
+      })
+      .catch(() => {
+        // Viewing the catalog should not depend on analytics.
+      });
+  }, []);
 
   return (
     <div className="app-shell">
@@ -96,6 +134,7 @@ export function AppShell({ categories, stats }: AppShellProps) {
         <footer className="site-footer">
           <span>{stats.categoryCount} 个分类</span>
           <span>{stats.siteCount} 个站点</span>
+          <span>{viewerCount} 人观看</span>
           {stats.lastSyncLabel ? <span>同步于 {stats.lastSyncLabel}</span> : null}
         </footer>
       </main>

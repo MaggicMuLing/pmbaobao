@@ -57,3 +57,12 @@ model SyncRun {
   siteCount     Int        @default(0)
   message       String?
 }
+
+model Visitor {
+  id          Int      @id @default(autoincrement())
+  browserId   String   @unique
+  userAgent   String?
+  viewCount   Int      @default(1)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+}
