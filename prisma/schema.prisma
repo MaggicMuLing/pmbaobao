@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id             Int            @id @default(autoincrement())
+  sourceId       String         @unique
+  parentSourceId String?
+  name           String
+  slug           String         @unique
+  iconClass      String?
+  kind           String
+  sortOrder      Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  sites          SiteCategory[]
+}
+
+model Site {
+  id              Int            @id @default(autoincrement())
+  sourceId        String         @unique
+  sourceDetailUrl String
+  title           String
+  description     String?
+  outboundUrl     String?
+  iconUrl         String?
+  isNoContentCard Boolean        @default(false)
+  sortOrder       Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  categories      SiteCategory[]
+}
+
+model SiteCategory {
+  siteId     Int
+  categoryId Int
+  sortOrder  Int @default(0)
+  site       Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([siteId, categoryId])
+  @@index([categoryId, sortOrder])
+}
+
+model SyncRun {
+  id            Int        @id @default(autoincrement())
+  sourceUrl     String
+  status        String
+  startedAt     DateTime   @default(now())
+  finishedAt    DateTime?
+  categoryCount Int        @default(0)
+  siteCount     Int        @default(0)
+  message       String?
+}

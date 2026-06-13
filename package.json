@@ -1,0 +1,33 @@
+{
+  "name": "pmbaobao-clone",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "db:generate": "prisma generate",
+    "db:init": "prisma generate && sqlite3 prisma/dev.db < prisma/migrations/20260613000000_init/migration.sql",
+    "db:reset": "rm -f prisma/dev.db prisma/dev.db-journal prisma/dev.db-shm prisma/dev.db-wal && pnpm db:init",
+    "sync": "tsx scripts/sync.ts",
+    "smoke:api": "tsx scripts/smoke-api.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "cheerio": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "prisma": "^6.19.3",
+    "tsx": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}

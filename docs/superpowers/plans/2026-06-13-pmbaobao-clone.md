@@ -1,0 +1,406 @@
+# pmbaobao Clone Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Build a local full-stack clone of the public `pmbaobao.com` homepage, backed by a SQLite database populated from the public homepage HTML.
+
+**Architecture:** Use one Next.js App Router project. Scraping and parsing live in server-side scripts, Prisma owns the SQLite schema, route handlers expose local APIs, and the homepage renders category/site data from the database.
+
+**Tech Stack:** Next.js, React, TypeScript, Prisma, SQLite, Cheerio, Vitest, CSS.
+
+---
+
+## 文件结构
+
+- `package.json`: scripts and dependencies.
+- `next.config.ts`: Next.js configuration.
+- `tsconfig.json`: TypeScript configuration.
+- `vitest.config.ts`: test configuration.
+- `.gitignore`: ignore dependencies, build output, env files, SQLite db, and cache snapshots.
+- `.env`: local Prisma database URL.
+- `README.md`: setup, sync, dev, test, and build commands.
+- `prisma/schema.prisma`: SQLite schema for categories, sites, relations, and sync runs.
+- `src/lib/db.ts`: Prisma client singleton.
+- `src/lib/types.ts`: shared API-facing TypeScript types.
+- `src/lib/scraper/fetchHome.ts`: fetch public homepage HTML and cache snapshots.
+- `src/lib/scraper/parseHome.ts`: pure parser from HTML to structured data.
+- `src/lib/scraper/sync.ts`: upsert parsed data into SQLite.
+- `src/lib/scraper/fixtures/pmbaobao.sample.html`: small parser fixture.
+- `src/lib/scraper/parseHome.test.ts`: parser tests.
+- `src/lib/repositories/catalog.ts`: database read queries for UI and APIs.
+- `src/app/api/categories/route.ts`: category API.
+- `src/app/api/sites/route.ts`: site-list API.
+- `src/app/api/search/route.ts`: search API.
+- `src/app/api/sync/route.ts`: sync status and manual sync API.
+- `src/app/page.tsx`: homepage server component.
+- `src/app/layout.tsx`: root HTML shell.
+- `src/app/globals.css`: OneNav-like styling.
+- `src/components/AppShell.tsx`: client-side page interactions.
+- `src/components/Sidebar.tsx`: sidebar navigation.
+- `src/components/SearchBar.tsx`: search and engine switching.
+- `src/components/CategorySection.tsx`: category/tab rendering.
+- `src/components/SiteCard.tsx`: site card.
+- `src/components/ThemeToggle.tsx`: light/dark mode.
+- `scripts/sync.ts`: CLI sync command.
+- `scripts/smoke-api.ts`: API smoke check against a running dev server.
+
+## Task 1: 项目脚手架
+
+**Files:**
+- Create: `package.json`
+- Create: `next.config.ts`
+- Create: `tsconfig.json`
+- Create: `vitest.config.ts`
+- Create: `.gitignore`
+- Create: `.env`
+- Create: `src/app/layout.tsx`
+- Create: `src/app/globals.css`
+- Create: `src/app/page.tsx`
+- Create: `README.md`
+
+- [ ] **Step 1: Initialize package metadata and scripts**
+
+Create `package.json` with scripts:
+
+```json
+{
+  "dependencies": {
+    "@prisma/client": "latest",
+    "cheerio": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "prisma": "latest",
+    "tsx": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "sync": "tsx scripts/sync.ts",
+    "smoke:api": "tsx scripts/smoke-api.ts"
+  }
+}
+```
+
+- [ ] **Step 2: Add baseline app files**
+
+Create minimal `layout.tsx`, `page.tsx`, and `globals.css` so the app boots.
+
+- [ ] **Step 3: Install dependencies**
+
+Run:
+
+```bash
+npm install
+```
+
+Expected: dependencies install and `package-lock.json` is created.
+
+- [ ] **Step 4: Verify baseline**
+
+Run:
+
+```bash
+npm run build
+```
+
+Expected: Next.js build succeeds with the placeholder page.
+
+## Task 2: 数据库模型
+
+**Files:**
+- Create: `prisma/schema.prisma`
+- Create: `src/lib/db.ts`
+- Create: `src/lib/types.ts`
+
+- [ ] **Step 1: Define Prisma schema**
+
+Create models:
+
+- `Category`
+- `Site`
+- `SiteCategory`
+- `SyncRun`
+
+Use unique constraints on `Category.sourceId` and `Site.sourceId`.
+
+- [ ] **Step 2: Generate Prisma client**
+
+Run:
+
+```bash
+npm run db:generate
+```
+
+Expected: Prisma client is generated.
+
+- [ ] **Step 3: Create migration**
+
+Run:
+
+```bash
+npm run db:migrate -- --name init
+```
+
+Expected: SQLite database and migration are created.
+
+## Task 3: HTML 解析器，先测试后实现
+
+**Files:**
+- Create: `src/lib/scraper/fixtures/pmbaobao.sample.html`
+- Create: `src/lib/scraper/parseHome.test.ts`
+- Create: `src/lib/scraper/parseHome.ts`
+
+- [ ] **Step 1: Write fixture**
+
+Create a small fixture containing:
+
+- one sidebar category with icon class
+- one parent category
+- two tab links
+- two site cards with `data-id`, `href`, `data-url`, title, description, and icon
+
+- [ ] **Step 2: Write failing parser tests**
+
+Test:
+
+- sidebar categories are parsed
+- tab categories are parsed
+- site cards are parsed
+- cards are linked to their tab/category
+
+- [ ] **Step 3: Run tests to verify failure**
+
+Run:
+
+```bash
+npm test -- src/lib/scraper/parseHome.test.ts
+```
+
+Expected: fails because parser is not implemented.
+
+- [ ] **Step 4: Implement parser**
+
+Use Cheerio to parse:
+
+- `.sidebar-item`
+- `.parent-category`
+- `.slider_menu .nav-link`
+- `.tab-pane .url-card a.card`
+- standalone section headings and following cards
+
+- [ ] **Step 5: Run tests to verify pass**
+
+Run:
+
+```bash
+npm test -- src/lib/scraper/parseHome.test.ts
+```
+
+Expected: parser tests pass.
+
+## Task 4: 抓取与入库同步
+
+**Files:**
+- Create: `src/lib/scraper/fetchHome.ts`
+- Create: `src/lib/scraper/sync.ts`
+- Create: `scripts/sync.ts`
+- Modify: `README.md`
+
+- [ ] **Step 1: Implement public HTML fetch**
+
+Fetch `https://www.pmbaobao.com/` with a browser-like User-Agent and save snapshots under `.cache/pmbaobao/`.
+
+- [ ] **Step 2: Implement sync upsert**
+
+Parse HTML and upsert:
+
+- categories
+- sites
+- site/category relations
+- sync run result
+
+- [ ] **Step 3: Implement CLI**
+
+Run:
+
+```bash
+npm run sync
+```
+
+Expected: command prints category and site counts.
+
+- [ ] **Step 4: Verify database data**
+
+Run:
+
+```bash
+npx prisma studio
+```
+
+Expected: tables contain parsed public homepage data.
+
+Manual alternative:
+
+```bash
+sqlite3 prisma/dev.db 'select count(*) from sites;'
+```
+
+Expected: count is greater than 0, ideally close to the observed 248 homepage cards.
+
+## Task 5: 查询仓库与 API
+
+**Files:**
+- Create: `src/lib/repositories/catalog.ts`
+- Create: `src/app/api/categories/route.ts`
+- Create: `src/app/api/sites/route.ts`
+- Create: `src/app/api/search/route.ts`
+- Create: `src/app/api/sync/route.ts`
+- Create: `scripts/smoke-api.ts`
+
+- [ ] **Step 1: Implement repository reads**
+
+Create functions:
+
+- `getCatalog()`
+- `getSites({ category, q, limit, offset })`
+- `searchSites(q)`
+- `getSyncStatus()`
+
+- [ ] **Step 2: Implement API routes**
+
+Return JSON for:
+
+- `GET /api/categories`
+- `GET /api/sites`
+- `GET /api/search`
+- `GET /api/sync`
+- `POST /api/sync`
+
+- [ ] **Step 3: Implement smoke script**
+
+Check each API returns HTTP 200 and expected shape.
+
+- [ ] **Step 4: Verify APIs**
+
+Run dev server, then:
+
+```bash
+npm run smoke:api
+```
+
+Expected: all API smoke checks pass.
+
+## Task 6: 高相似首页 UI
+
+**Files:**
+- Modify: `src/app/page.tsx`
+- Modify: `src/app/globals.css`
+- Create: `src/components/AppShell.tsx`
+- Create: `src/components/Sidebar.tsx`
+- Create: `src/components/SearchBar.tsx`
+- Create: `src/components/CategorySection.tsx`
+- Create: `src/components/SiteCard.tsx`
+- Create: `src/components/ThemeToggle.tsx`
+
+- [ ] **Step 1: Render data from database**
+
+Load catalog data in `page.tsx`, pass it to `AppShell`.
+
+- [ ] **Step 2: Build navigation shell**
+
+Implement fixed sidebar, mobile toggle, and main content area.
+
+- [ ] **Step 3: Build search area**
+
+Implement local keyword filtering and external search-engine submission.
+
+- [ ] **Step 4: Build category sections**
+
+Render parent categories, tab categories, empty states, and site grids.
+
+- [ ] **Step 5: Build cards**
+
+Render icon, title, description, and outbound link.
+
+- [ ] **Step 6: Add OneNav-like CSS**
+
+Match compact grid, muted surfaces, small-radius cards, fixed sidebar, and responsive behavior.
+
+## Task 7: 最终验证
+
+**Files:**
+- Modify: `README.md`
+
+- [ ] **Step 1: Run sync**
+
+Run:
+
+```bash
+npm run sync
+```
+
+Expected: public homepage data is stored locally.
+
+- [ ] **Step 2: Run tests**
+
+Run:
+
+```bash
+npm test
+```
+
+Expected: all tests pass.
+
+- [ ] **Step 3: Run build**
+
+Run:
+
+```bash
+npm run build
+```
+
+Expected: production build succeeds.
+
+- [ ] **Step 4: Start dev server**
+
+Run:
+
+```bash
+npm run dev
+```
+
+Expected: app is available on a local URL.
+
+- [ ] **Step 5: Browser verification**
+
+Open the app in the in-app browser and verify:
+
+- sidebar renders
+- categories render from SQLite
+- cards render from SQLite
+- search filters cards
+- theme toggle works
+- mobile width has no obvious overlap
+
+- [ ] **Step 6: Update README**
+
+Document:
+
+- install
+- database migration
+- sync
+- development server
+- test
+- build
