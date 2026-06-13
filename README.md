@@ -1,6 +1,6 @@
-# pmbaobao Clone
+# pmbaobao
 
-本项目是在本地运行的 `pmbaobao.com` 首页复刻站。前端复刻原站导航首页形态，后端使用 Next.js API，数据来自公开首页 HTML 抓取后写入本地 SQLite。
+本项目是在本地运行的 `pmbaobao.com` 风格导航站。前端呈现原站导航首页形态，后端使用 Next.js API，数据来自公开首页 HTML 抓取后写入本地 SQLite。
 
 ## 启动
 

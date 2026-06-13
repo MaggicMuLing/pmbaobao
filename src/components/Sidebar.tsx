@@ -16,7 +16,7 @@ export function Sidebar({ categories, isOpen, onClose }: SidebarProps) {
           <div className="logo-mark">AI</div>
           <div>
             <strong>AI产品导航</strong>
-            <span>pmbaobao clone</span>
+            <span>pmbaobao</span>
           </div>
         </div>
         <nav className="sidebar-menu">

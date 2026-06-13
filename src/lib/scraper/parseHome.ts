@@ -62,9 +62,14 @@ function categoryFromHeading($: cheerio.CheerioAPI, heading: CheerioSelectable) 
 
   if (!sourceId) return null;
 
-  const clone = $heading.clone();
-  clone.find("i").remove();
-  const name = normalizeText(clone.text());
+  const name = normalizeText(
+    $heading
+      .contents()
+      .toArray()
+      .filter((node) => node.type === "text")
+      .map((node) => $(node).text())
+      .join(" ")
+  );
 
   if (!name) return null;
 
