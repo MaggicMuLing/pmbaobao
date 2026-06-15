@@ -1,7 +1,12 @@
 import { prisma } from "../db";
-import type { ParsedHome } from "../types";
-import { cacheHomeHtml, fetchHomeHtml, PMBAOBAO_HOME_URL } from "./fetchHome";
-import { parseHome } from "./parseHome";
+import type { ParsedHome, ParsedSite } from "../types";
+import {
+  cacheHomeHtml,
+  fetchHomeHtml,
+  fetchHomeTabHtml,
+  PMBAOBAO_HOME_URL
+} from "./fetchHome";
+import { parseHome, parseTabSites } from "./parseHome";
 
 interface SyncOptions {
   html?: string;
@@ -13,6 +18,60 @@ export interface SyncResult {
   categoryCount: number;
   siteCount: number;
   snapshotPath: string | null;
+}
+
+function mergeParsedSite(
+  sitesBySourceId: Map<string, ParsedSite>,
+  site: ParsedSite
+) {
+  const existing = sitesBySourceId.get(site.sourceId);
+
+  if (!existing) {
+    sitesBySourceId.set(site.sourceId, site);
+    return;
+  }
+
+  sitesBySourceId.set(site.sourceId, {
+    ...existing,
+    ...site,
+    categorySourceIds: Array.from(
+      new Set([...existing.categorySourceIds, ...site.categorySourceIds])
+    ),
+    categorySortOrders: {
+      ...existing.categorySortOrders,
+      ...site.categorySortOrders
+    }
+  });
+}
+
+async function hydrateAjaxTabs(parsed: ParsedHome) {
+  const sitesBySourceId = new Map<string, ParsedSite>();
+
+  for (const site of parsed.sites) {
+    mergeParsedSite(sitesBySourceId, site);
+  }
+
+  for (const tab of parsed.ajaxTabs) {
+    const hasSites = Array.from(sitesBySourceId.values()).some((site) =>
+      site.categorySourceIds.includes(tab.sourceId)
+    );
+
+    if (hasSites) continue;
+
+    const tabHtml = await fetchHomeTabHtml(tab);
+    const tabSites = parseTabSites(tabHtml, tab.sourceId);
+
+    for (const site of tabSites) {
+      mergeParsedSite(sitesBySourceId, site);
+    }
+  }
+
+  return {
+    ...parsed,
+    sites: Array.from(sitesBySourceId.values()).sort(
+      (a, b) => a.sortOrder - b.sortOrder
+    )
+  };
 }
 
 async function upsertParsedHome(parsed: ParsedHome) {
@@ -70,6 +129,7 @@ async function upsertParsedHome(parsed: ParsedHome) {
     for (const [index, categorySourceId] of site.categorySourceIds.entries()) {
       const categoryId = categoryIdBySourceId.get(categorySourceId);
       if (!categoryId) continue;
+      const sortOrder = site.categorySortOrders[categorySourceId] ?? index;
 
       await prisma.siteCategory.upsert({
         where: {
@@ -81,10 +141,10 @@ async function upsertParsedHome(parsed: ParsedHome) {
         create: {
           siteId: siteRow.id,
           categoryId,
-          sortOrder: index
+          sortOrder
         },
         update: {
-          sortOrder: index
+          sortOrder
         }
       });
     }
@@ -104,7 +164,7 @@ export async function syncPublicHome(options: SyncOptions = {}): Promise<SyncRes
     const html = options.html ?? (await fetchHomeHtml(sourceUrl));
     const snapshotPath =
       options.cacheSnapshot === false ? null : await cacheHomeHtml(html);
-    const parsed = parseHome(html);
+    const parsed = await hydrateAjaxTabs(parseHome(html));
 
     await upsertParsedHome(parsed);
 

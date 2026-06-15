@@ -46,9 +46,20 @@ export interface ParsedSite {
   isNoContentCard: boolean;
   sortOrder: number;
   categorySourceIds: string[];
+  categorySortOrders: Record<string, number>;
 }
 
 export interface ParsedHome {
   categories: ParsedCategory[];
   sites: ParsedSite[];
+  ajaxTabs: ParsedAjaxTab[];
+}
+
+export interface ParsedAjaxTab {
+  sourceId: string;
+  parentSourceId: string;
+  action: string;
+  taxonomy: string | null;
+  postId: string | null;
+  sidebar: string | null;
 }

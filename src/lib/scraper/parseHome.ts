@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import type { ParsedCategory, ParsedHome, ParsedSite } from "../types";
+import type { ParsedAjaxTab, ParsedCategory, ParsedHome, ParsedSite } from "../types";
 
 const SOURCE_ORIGIN = "https://www.pmbaobao.com";
 type CheerioSelectable = Parameters<cheerio.CheerioAPI>[0];
@@ -115,7 +115,10 @@ function cardToSite(
     iconUrl,
     isNoContentCard: ($card.attr("class") ?? "").split(/\s+/).includes("no-c"),
     sortOrder,
-    categorySourceIds
+    categorySourceIds,
+    categorySortOrders: Object.fromEntries(
+      categorySourceIds.map((categorySourceId) => [categorySourceId, sortOrder])
+    )
   };
 }
 
@@ -132,14 +135,31 @@ function addSite(sites: Map<string, ParsedSite>, site: ParsedSite) {
     ...site,
     categorySourceIds: Array.from(
       new Set([...existing.categorySourceIds, ...site.categorySourceIds])
-    )
+    ),
+    categorySortOrders: {
+      ...existing.categorySortOrders,
+      ...site.categorySortOrders
+    }
   });
+}
+
+export function parseTabSites(html: string, categorySourceId: string) {
+  const $ = cheerio.load(html);
+  const sites = new Map<string, ParsedSite>();
+
+  $(".url-card a.card").each((siteIndex, card) => {
+    const site = cardToSite($, card, [categorySourceId], siteIndex);
+    if (site) addSite(sites, site);
+  });
+
+  return Array.from(sites.values()).sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 export function parseHome(html: string): ParsedHome {
   const $ = cheerio.load(html);
   const categories = new Map<string, ParsedCategory>();
   const sites = new Map<string, ParsedSite>();
+  const ajaxTabs: ParsedAjaxTab[] = [];
 
   $("#sidebar .sidebar-item").each((index, item) => {
     const link = $(item).children("a").first();
@@ -184,7 +204,17 @@ export function parseHome(html: string): ParsedHome {
     const parentSourceId = sourceIdFromTerm($(parent).attr("id"));
     if (!parentSourceId) return;
 
-    const tabMenu = $(parent).nextAll(".slider_menu").first();
+    const tabMenuContainer = $(parent)
+      .nextAll()
+      .filter((_, element) => {
+        const current = $(element);
+        return current.is(".slider_menu") || current.find(".slider_menu").length > 0;
+      })
+      .first();
+    const tabMenu = tabMenuContainer.is(".slider_menu")
+      ? tabMenuContainer
+      : tabMenuContainer.find(".slider_menu").first();
+
     tabMenu.find(".nav-link").each((tabIndex, tabLink) => {
       const $tabLink = $(tabLink);
       const sourceId =
@@ -203,6 +233,20 @@ export function parseHome(html: string): ParsedHome {
         kind: "tab",
         sortOrder: tabIndex
       });
+
+      const tabItem = $tabLink.closest(".pagenumber");
+      const action = normalizeText(tabItem.attr("data-action"));
+
+      if (action) {
+        ajaxTabs.push({
+          sourceId,
+          parentSourceId,
+          action,
+          taxonomy: normalizeText(tabItem.attr("data-taxonomy")) || null,
+          postId: normalizeText(tabItem.attr("data-post_id")) || null,
+          sidebar: normalizeText(tabItem.attr("data-sidebar")) || null
+        });
+      }
     });
   });
 
@@ -248,6 +292,7 @@ export function parseHome(html: string): ParsedHome {
     categories: Array.from(categories.values()).sort(
       (a, b) => a.sortOrder - b.sortOrder
     ),
-    sites: Array.from(sites.values()).sort((a, b) => a.sortOrder - b.sortOrder)
+    sites: Array.from(sites.values()).sort((a, b) => a.sortOrder - b.sortOrder),
+    ajaxTabs
   };
 }
